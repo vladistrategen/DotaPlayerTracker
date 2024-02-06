@@ -92,12 +92,29 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
 
     message+="\n"
 
-    if leaderboard_rank <= 150:
+    if leaderboard_rank <= 10:
+        message += "Ai terminat DOTA, bravo!"
+    elif leaderboard_rank <= 50:
+        message += "Bravo, esti un zeu"
+    elif leaderboard_rank <= 100:
+        message += "Inca putin si vine salariul"
+    elif leaderboard_rank <= 150:
         message += "Ai scapat de flori, you live to fight another day"
     elif leaderboard_rank <= 350:
-        message += "Bravo, nu mai esti un gunoi"
+        message += "Mda, nu mai esti un gunoi"
     elif leaderboard_rank < 500:
         message += "Nu esti prost, dar nici bun nu esti"
+    elif leaderboard_rank < 600:
+        message += "Ce faci, esti prost?"
+    elif leaderboard_rank < 700:
+        message += "Esti prost, nu te mai uita la monitor"
+    elif leaderboard_rank < 800:
+        message += "Cum s-a ajuns aici?"
+    elif leaderboard_rank < 900:
+        message += "Esti un GUNOI!!!!"
+    elif leaderboard_rank < 1000:
+        message += "Get a job lil bro... https://www.linkedin.com/ "
+
     else:
         message += "Ai incerat sa joci cu monitorul pornit?"
 
