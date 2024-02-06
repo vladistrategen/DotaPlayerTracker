@@ -125,7 +125,7 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
         message += "Nici gagica n-ai, nici rank n-ai, ce faci cu viata ta?"
     elif leaderboard_rank < 700:
         message += "Esti prost, nu te mai uita la monitor"
-     elif leaderboard_rank < 750:
+    elif leaderboard_rank < 750:
         message += "Sa speram ca nu cade mai jos de atat..."
     elif leaderboard_rank < 800:
         message += "Cum s-a ajuns aici?"
