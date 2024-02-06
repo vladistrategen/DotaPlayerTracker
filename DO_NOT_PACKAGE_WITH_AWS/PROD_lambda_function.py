@@ -91,14 +91,52 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
 
     message+="\n"
 
-    if leaderboard_rank <= 150:
+    if leaderboard_rank <= 10:
+        message += "Ai terminat DOTA, bravo!"
+    elif leaderboard_rank <= 50:
+        message += "Bravo, esti un zeu"
+    elif leaderboard_rank <= 70:
+        message += "Tatal tau este mandru de tine!"
+    elif leaderboard_rank <= 100:
+        message += "He is locked in, he takes no prisoners, there is no one to tell the tale..."
+    elif leaderboard_rank <= 125:
+        message += "Inca putin si vine salariul"
+    elif leaderboard_rank <= 150:
         message += "Ai scapat de flori, you live to fight another day"
+    elif leaderboard_rank <= 200:
+        message += "Jon Snow a venit din morti, tu ai venit din top 200"
+    elif leaderboard_rank <= 250:
+        message += "Inca putin si ma las de facultate"
+    elif leaderboard_rank <= 300:
+        message += "Este doar un mental block... pot intra in top 200"
     elif leaderboard_rank <= 350:
-        message += "Bravo, nu mai esti un gunoi"
+        message += "Inca 300 de rankuri si o s-o ai pe Aviana"
+    elif leaderboard_rank < 400:
+        message += "Mda, nu mai esti un gunoi"
+    elif leaderboard_rank < 450:
+        message += "HAAAI ANDREI CA NE AI BAGAT PE TOTI IN SCAUNEEEEEEE"
     elif leaderboard_rank < 500:
-        message += "Nu esti prost, dar nici bun nu esti"
+        message += "The shadow of a once mighty player..."
+    elif leaderboard_rank < 550:
+        message += "For the watch"
+    elif leaderboard_rank < 600:
+        message += "Ce faci, esti prost?"
+    elif leaderboard_rank < 650:
+        message += "Nici gagica n-ai, nici rank n-ai, ce faci cu viata ta?"
+    elif leaderboard_rank < 700:
+        message += "Esti prost, nu te mai uita la monitor"
+     elif leaderboard_rank < 750:
+        message += "Sa speram ca nu cade mai jos de atat..."
+    elif leaderboard_rank < 800:
+        message += "Cum s-a ajuns aici?"
+    elif leaderboard_rank < 900:
+        message += "Esti un GUNOI!!!! Mihai juca mai bine, apuca te de league si joaca Garen ca atata stii sa faci"
+    elif leaderboard_rank < 1000:
+        message += "Get a job lil bro... https://www.linkedin.com/ "
+    elif leaderboard_rank < 2000:
+        message += "ROMPREST!!!! https://romprest.eu/ "
     else:
-        message += "Ai incerat sa joci cu monitorul pornit?"
+        message += "Esti un gunoi, nu mai juca DOTA"
 
     return message, channel_name
 
