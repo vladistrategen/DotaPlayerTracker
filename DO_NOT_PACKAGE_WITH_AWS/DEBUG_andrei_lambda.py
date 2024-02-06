@@ -114,9 +114,10 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
         message += "Esti un GUNOI!!!!"
     elif leaderboard_rank < 1000:
         message += "Get a job lil bro... https://www.linkedin.com/ "
-
+    elif leaderboard_rank < 2000:
+        message += "ROMPREST!!!! https://romprest.eu/ "
     else:
-        message += "Ai incerat sa joci cu monitorul pornit?"
+        message += "Esti un gunoi, nu mai juca DOTA"
 
     return message, channel_name
 
