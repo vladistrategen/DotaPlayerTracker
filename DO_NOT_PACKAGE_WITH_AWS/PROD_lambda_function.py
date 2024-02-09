@@ -106,7 +106,7 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
     elif leaderboard_rank <= 200:
         message += "Jon Snow a venit din morti, tu ai venit din top 200"
     elif leaderboard_rank <= 250:
-        message += "Inca putin si ma las de facultate"
+        message += "Inca putin si te lasi de facultate"
     elif leaderboard_rank <= 300:
         message += "Este doar un mental block... pot intra in top 200"
     elif leaderboard_rank <= 350:
