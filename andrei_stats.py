@@ -67,7 +67,7 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
         plt.gca().invert_yaxis()
     
     # Save the plot as an image
-    image_path = f'{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.png'
+    image_path = f'images/{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.png'
     plt.savefig(image_path, dpi=100)
     plt.close()
     
@@ -76,56 +76,70 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
 def create_animation(df, inverted=False, detailed=False, duration=10):
     fig, ax = plt.subplots(figsize=(19.2, 10.8))
     line, = ax.plot([], [], linestyle='-', marker='')
-    text = ax.text(0.5, 0.9, '', transform=ax.transAxes, ha='center')
+    text = ax.text(0.5, 1.05, '', transform=ax.transAxes, ha='center', fontsize=15)
     progress_bar = tqdm(total=len(df), desc="Creating animation frames")
-    min_points = []
-    max_points = []
-    
+    plotted_min_points = set()
+    plotted_max_points = set()
+
+    # Get the first and last date for annotations
+    first_date = df['DateTime'].iloc[0]
+    last_date = df['DateTime'].iloc[-1]
+
     def init():
         ax.set_xlim(df['DateTime'].min(), df['DateTime'].max())
         ax.set_ylim(0, 1000)  # Fixed y-axis range
         ax.grid(True)  # Add grid lines
+
+        # Add annotations for the first and last dates
+        ax.annotate(first_date.strftime('%d %B %Y'), xy=(first_date, 0), xycoords=('data', 'axes fraction'),
+                    xytext=(0, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
+        ax.annotate(last_date.strftime('%d %B %Y'), xy=(last_date, 0), xycoords=('data', 'axes fraction'),
+                    xytext=(0, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
+
         if inverted:
             ax.invert_yaxis()
         return line, text
 
     def update(frame):
         current_time = df['DateTime'].iloc[frame]
-        text.set_text(current_time.strftime('%B %Y'))
+        current_rank = df['Rank'].iloc[frame]
+        text.set_text(f"{current_time.strftime('%d %B %Y')}, Rank: {current_rank}")
         xdata = df['DateTime'].iloc[:frame + 1]
         ydata = df['Rank'].iloc[:frame + 1]
         line.set_data(xdata, ydata)
-        
+
         if detailed:
             current_month = df['DateTime'].dt.to_period('M').iloc[frame]
             month_group = df[df['DateTime'].dt.to_period('M') == current_month]
+
             if not month_group.empty:
                 max_rank = month_group.loc[month_group['Rank'].idxmin()]
                 min_rank = month_group.loc[month_group['Rank'].idxmax()]
-                if current_time >= min_rank['DateTime']:
-                    min_points.append((min_rank['DateTime'], min_rank['Rank']))
-                if current_time >= max_rank['DateTime']:
-                    max_points.append((max_rank['DateTime'], max_rank['Rank']))
-            for min_point in min_points:
-                ax.scatter(min_point[0], min_point[1], color='blue')
-                ax.text(min_point[0], min_point[1], f"{min_point[1]}", verticalalignment='top', horizontalalignment='right', color='red')
-            for max_point in max_points:
-                ax.scatter(max_point[0], max_point[1], color='green')
-                ax.text(max_point[0], max_point[1], f"{max_point[1]}", verticalalignment='bottom', horizontalalignment='left', color='green')
-        
+
+                if (current_month, min_rank['DateTime']) not in plotted_min_points and current_time >= min_rank['DateTime']:
+                    ax.scatter(min_rank['DateTime'], min_rank['Rank'], color='blue')
+                    ax.text(min_rank['DateTime'], min_rank['Rank'], f"{min_rank['Rank']}", verticalalignment='top', horizontalalignment='right', color='red')
+                    plotted_min_points.add((current_month, min_rank['DateTime']))
+
+                if (current_month, max_rank['DateTime']) not in plotted_max_points and current_time >= max_rank['DateTime']:
+                    ax.scatter(max_rank['DateTime'], max_rank['Rank'], color='green')
+                    ax.text(max_rank['DateTime'], max_rank['Rank'], f"{max_rank['Rank']}", verticalalignment='bottom', horizontalalignment='left', color='green')
+                    plotted_max_points.add((current_month, max_rank['DateTime']))
+
         progress_bar.update(1)
         return line, text
 
     fps = len(df) / duration
     anim = FuncAnimation(fig, update, frames=len(df), init_func=init, blit=False, repeat=False)
-    
+
     # Save the animation as a video
-    video_path = f'{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.mp4'
+    video_path = f'videos/{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.mp4'
     anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100)
     progress_bar.close()
     plt.close(fig)
     
     return video_path
+
 
 @client.event
 async def on_ready():
