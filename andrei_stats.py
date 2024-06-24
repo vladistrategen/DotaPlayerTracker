@@ -19,6 +19,41 @@ intents.messages = True
 
 client = discord.Client(intents=intents)
 
+async def fetch_messages(channel, start_date, end_date):
+    messages = []
+    last_message_id = None
+    while True:
+        new_messages = []
+        async for message in channel.history(limit=100, before=discord.Object(id=last_message_id) if last_message_id else None):
+            new_messages.append(message)
+
+        if not new_messages:
+            print("No more messages found.")
+            break
+
+        found_new_messages_between_dates = False
+
+        for message in new_messages:
+            message_date = parse_message(message.content)[0]
+            if message_date and (not start_date or message_date >= start_date) and (not end_date or message_date <= end_date):
+                found_new_messages_between_dates = True
+                messages.append(message)
+
+        # Check the dates of the first and last messages in the new batch
+        first_message_date = parse_message(new_messages[0].content)[0]
+        last_message_date = parse_message(new_messages[-1].content)[0]
+
+        print(f'Searching between {first_message_date} and {last_message_date}...')
+        if found_new_messages_between_dates:
+            print(f'Found {len(new_messages)} messages between {first_message_date} and {last_message_date}')
+
+        last_message_id = new_messages[-1].id
+        if start_date and last_message_date < start_date:
+            print("Reached messages older than the start date. Stopping...")
+            break  # Stop if we've reached messages older than the start date
+
+    return messages
+
 # Function to parse date, time, and rank from message content
 def parse_message(message_content):
     match = re.match(r"(\d{2}/\d{2}/\d{4})-(\d{2}:\d{2}:\d{2}) - Rank: (\d+)", message_content)
@@ -61,13 +96,20 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
     plt.title('Rank Evolution Over Time')
     plt.grid(True)
     plt.xticks(rotation=45)
-    plt.ylim(0, 1000)  # Set y-axis limits
+    if args.zoomed_in: # TODO: fix for values close to factors of 25
+        min_rank = df['Rank'].min()
+        max_rank = df['Rank'].max()
+        min_rank = 25 * (min_rank // 25)
+        max_rank = 25 * (max_rank // 25 + 1)
+        plt.ylim(min_rank, max_rank)
+    else:
+        plt.ylim(0, 1000)  # Set y-axis limits
 
     if inverted:
         plt.gca().invert_yaxis()
     
     # Save the plot as an image
-    image_path = f'images/{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.png'
+    image_path = f'images/{"GENERAL" if not args.start_date and not args.end_date else ( f"{args.start_date}___{args.end_date}" if args.start_date and args.end_date else f"FROM___{args.start_date}" if args.start_date else f"UNTIL___{args.end_date}")}___{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}{"zoomed_in_" if args.zoomed_in else ""}rank_evolution.png'
     plt.savefig(image_path, dpi=100)
     plt.close()
     
@@ -87,7 +129,16 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
 
     def init():
         ax.set_xlim(df['DateTime'].min(), df['DateTime'].max())
-        ax.set_ylim(0, 1000)  # Fixed y-axis range
+        if args.zoomed_in: # TODO: fix for values close to factors of 25
+            min_rank = df['Rank'].min()
+            max_rank = df['Rank'].max()
+            min_rank = 25 * (min_rank // 25)
+            max_rank = 25 * (max_rank // 25 + 1)
+            ax.set_ylim(min_rank, max_rank)
+            pass
+        else:
+            ax.set_ylim(0, 1000)
+
         ax.grid(True)  # Add grid lines
 
         # Add annotations for the first and last dates
@@ -103,12 +154,12 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
     def update(frame):
         current_time = df['DateTime'].iloc[frame]
         current_rank = df['Rank'].iloc[frame]
-        text.set_text(f"{current_time.strftime('%d %B %Y')}, Rank: {current_rank}")
+        text.set_text(f"{current_time.strftime('%d %B %Y, %H:%M')}, Rank: {current_rank}")
         xdata = df['DateTime'].iloc[:frame + 1]
         ydata = df['Rank'].iloc[:frame + 1]
         line.set_data(xdata, ydata)
 
-        if detailed:
+        if detailed: # TODO: add option to select min/max interval
             current_month = df['DateTime'].dt.to_period('M').iloc[frame]
             month_group = df[df['DateTime'].dt.to_period('M') == current_month]
 
@@ -133,7 +184,7 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
     anim = FuncAnimation(fig, update, frames=len(df), init_func=init, blit=False, repeat=False)
 
     # Save the animation as a video
-    video_path = f'videos/{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}rank_evolution.mp4'
+    video_path = f'videos/{"GENERAL" if not args.start_date and not args.end_date else ( f"{args.start_date}___{args.end_date}" if args.start_date and args.end_date else f"FROM___{args.start_date}" if args.start_date else f"UNTIL___{args.end_date}")}___{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}{"zoomed_in_" if args.zoomed_in else ""}rank_evolution.mp4'
     anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100)
     progress_bar.close()
     plt.close(fig)
@@ -147,24 +198,9 @@ async def on_ready():
     channel = client.get_channel(CHANNEL_ID)
     
     # Read all messages from the channel
-    messages = []
-    last_message_id = None
-    while True:
-        new_messages = []
-        async for message in channel.history(limit=100, before=discord.Object(id=last_message_id) if last_message_id else None):
-            new_messages.append(message)
-        
-        if not new_messages:
-            print("No more messages found.")
-            break
-        
-        date_times = [message.created_at for message in new_messages]
-        date1 = date_times[0].strftime('%Y-%m-%d')
-        date2 = date_times[-1].strftime('%Y-%m-%d')
-        print(f'Found {len(new_messages)} messages between {date1} and {date2}')
-        
-        messages.extend(new_messages)
-        last_message_id = new_messages[-1].id
+    start_date = datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date else None
+    end_date = datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date else None
+    messages = await fetch_messages(channel, start_date, end_date)
     
     data = []
     for message in messages:
@@ -179,13 +215,15 @@ async def on_ready():
         if args.video:
             video_path = create_animation(df, args.inverted, args.detailed, args.duration)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            message = await channel.send(content=f"Rank evolution animation generated on {today_str}", file=discord.File(video_path))
+            if args.send:
+                message = await channel.send(content=f"Rank evolution animation generated on {today_str}", file=discord.File(video_path))
         else:
             image_path = plot_rank_evolution(df, args.inverted, args.detailed)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            message = await channel.send(content=f"Rank evolution plot generated on {today_str}", file=discord.File(image_path))
+            if args.send:
+                message = await channel.send(content=f"Rank evolution plot generated on {today_str}", file=discord.File(image_path))
         
-        if args.pin:
+        if args.pin and args.send:
             await message.pin()
     
     await client.close()
@@ -203,6 +241,10 @@ if __name__ == "__main__":
     parser.add_argument('--video', '-v', action='store_true', help="Create an animation of the rank evolution")
     parser.add_argument('--duration', '-t', type=int, default=10, help="Duration of the animation in seconds")
     parser.add_argument('--pin', '-p', action='store_true', help="Pin the generated plot")
+    parser.add_argument('--send', '-s', action='store_true', help="Send the generated plot")
+    parser.add_argument('--start_date', '-sd', type=str, help='Start date for the data collection')
+    parser.add_argument('--end_date', '-ed', type=str, help='End date for the data collection')
+    parser.add_argument('--zoomed_in', '-z', action='store_true', help='Plot the graph with a dynamic, zoomed in y-axis')
     args = parser.parse_args()
     
     asyncio.run(main())
