@@ -1,6 +1,7 @@
 import discord
 import re
 from datetime import datetime
+import matplotlib
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -10,14 +11,21 @@ import argparse
 from tqdm import tqdm
 
 # Load environment variables from .env file
+matplotlib.use('Agg')  # Non-interactive backend
 load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID'))
 
 intents = discord.Intents.default()
 intents.messages = True
-
+intents.message_content = True
 client = discord.Client(intents=intents)
+
+if not os.path.exists('videos'):
+    os.makedirs('videos')
+
+if not os.path.exists('images'):
+    os.makedirs('images')
 
 async def fetch_messages(channel, start_date, end_date):
     messages = []
@@ -152,6 +160,7 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
         return line, text
 
     def update(frame):
+        # print(f"Processing frame {frame}/{len(df)}")  
         current_time = df['DateTime'].iloc[frame]
         current_rank = df['Rank'].iloc[frame]
         text.set_text(f"{current_time.strftime('%d %B %Y, %H:%M')}, Rank: {current_rank}")
@@ -185,7 +194,7 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
 
     # Save the animation as a video
     video_path = f'videos/{"GENERAL" if not args.start_date and not args.end_date else ( f"{args.start_date}___{args.end_date}" if args.start_date and args.end_date else f"FROM___{args.start_date}" if args.start_date else f"UNTIL___{args.end_date}")}___{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}{"zoomed_in_" if args.zoomed_in else ""}rank_evolution.mp4'
-    anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100)
+    anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100, extra_args=['-v', 'error'])
     progress_bar.close()
     plt.close(fig)
     
@@ -197,7 +206,7 @@ async def on_ready():
     print(f'Logged in as {client.user}')
     channel = client.get_channel(CHANNEL_ID)
     
-    # Read all messages from the channel
+    global args  # Make sure args are globally accessible within async functions
     start_date = datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date else None
     end_date = datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date else None
     messages = await fetch_messages(channel, start_date, end_date)
