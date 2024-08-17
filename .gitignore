@@ -6,3 +6,5 @@ package/
 lambda_package/
 images/*
 videos/*
+.vscode
+.vscode/*
