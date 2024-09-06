@@ -70,26 +70,43 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
     plt.figure(figsize=(19.2, 10.8))
     plt.plot(df['DateTime'], df['Rank'], linestyle='-', marker='')
 
-    # Highlight the first and last dates
     first_date = df['DateTime'].iloc[0]
     last_date = df['DateTime'].iloc[-1]
     
+    total_days = (last_date - first_date).days
+
+    if total_days > 365:
+        interval = 'M'  
+    elif total_days > 30:
+        interval = 'W'  
+    else:
+        interval = 'D'
+
     plt.annotate(first_date.strftime('%d %B %Y'), xy=(first_date, 0), xycoords=('data', 'axes fraction'),
                     xytext=(-50, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
     plt.annotate(last_date.strftime('%d %B %Y'), xy=(last_date, 0), xycoords=('data', 'axes fraction'),
                     xytext=(50, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
     
     if detailed:
-        # Highlight local minimum and maximum for each month
-        df['Month'] = df['DateTime'].dt.to_period('M').apply(lambda r: r.start_time)
-        for month, group in df.groupby('Month'):
-            if len(group) > 1:
-                max_rank = group.loc[group['Rank'].idxmin()]
-                min_rank = group.loc[group['Rank'].idxmax()]
-                plt.scatter([min_rank['DateTime']], [min_rank['Rank']], color='red')
-                plt.text(min_rank['DateTime'], min_rank['Rank'], f"{min_rank['Rank']}", verticalalignment='top', horizontalalignment='right', color='red')
-                plt.scatter([max_rank['DateTime']], [max_rank['Rank']], color='green')
-                plt.text(max_rank['DateTime'], max_rank['Rank'], f"{max_rank['Rank']}", verticalalignment='bottom', horizontalalignment='left', color='green')
+        print("detailing")
+        df['Period'] = df['DateTime'].dt.to_period(interval)
+        period_groups = df.groupby('Period')
+
+        for period, group in period_groups:
+            if not group.empty:
+                max_rank_row = group.loc[group['Rank'].idxmin()]
+                min_rank_row = group.loc[group['Rank'].idxmax()]
+
+                # Plot and annotate local min (max rank value)
+                plt.scatter(min_rank_row['DateTime'], min_rank_row['Rank'], color='blue')
+                plt.text(min_rank_row['DateTime'], min_rank_row['Rank'], f"{min_rank_row['Rank']}", 
+                         verticalalignment='top', horizontalalignment='right', color='red')
+
+                # Plot and annotate local max (min rank value)
+                plt.scatter(max_rank_row['DateTime'], max_rank_row['Rank'], color='green')
+                plt.text(max_rank_row['DateTime'], max_rank_row['Rank'], f"{max_rank_row['Rank']}", 
+                         verticalalignment='bottom', horizontalalignment='left', color='green')
+
 
     plt.xlabel('Date and Time')
     plt.ylabel('Rank')
@@ -145,7 +162,17 @@ def create_animation(df, inverted=False, detailed=False, duration=10, zoomed_in=
     else:
         interval = 'D'  # Daily otherwise
 
-    min_rank = df
+    df['Period'] = df['DateTime'].dt.to_period(interval)
+    period_min_max = {}
+
+    for period, group in df.groupby('Period'):
+        if not group.empty:
+            max_rank_row = group.loc[group['Rank'].idxmin()]
+            min_rank_row = group.loc[group['Rank'].idxmax()]
+            period_min_max[period] = {
+                'min': min_rank_row,
+                'max': max_rank_row
+            }
 
     def init():
         ax.set_xlim(df['DateTime'].min(), df['DateTime'].max())
@@ -181,23 +208,25 @@ def create_animation(df, inverted=False, detailed=False, duration=10, zoomed_in=
         line.set_data(xdata, ydata)
 
         if detailed:
-            # Group data based on the calculated interval
             current_period = df['DateTime'].dt.to_period(interval).iloc[frame]
-            period_group = df[df['DateTime'].dt.to_period(interval) == current_period]
 
-            if not period_group.empty:
-                max_rank = period_group.loc[period_group['Rank'].idxmin()]
-                min_rank = period_group.loc[period_group['Rank'].idxmax()]
+        if current_period in period_min_max:
+            min_rank = period_min_max[current_period]['min']
+            max_rank = period_min_max[current_period]['max']
 
-                if (current_period, min_rank['DateTime']) not in plotted_min_points and current_time >= min_rank['DateTime']:
-                    ax.scatter(min_rank['DateTime'], min_rank['Rank'], color='blue')
-                    ax.text(min_rank['DateTime'], min_rank['Rank'], f"{min_rank['Rank']}", verticalalignment='top', horizontalalignment='right', color='red')
-                    plotted_min_points.add((current_period, min_rank['DateTime']))
+            # Plot min rank when the timeline reaches or passes the min point
+            if (current_period, min_rank['DateTime']) not in plotted_min_points and current_time >= min_rank['DateTime']:
+                ax.scatter(min_rank['DateTime'], min_rank['Rank'], color='blue')
+                ax.text(min_rank['DateTime'], min_rank['Rank'], f"{min_rank['Rank']}",
+                        verticalalignment='top', horizontalalignment='right', color='red')
+                plotted_min_points.add((current_period, min_rank['DateTime']))
 
-                if (current_period, max_rank['DateTime']) not in plotted_max_points and current_time >= max_rank['DateTime']:
-                    ax.scatter(max_rank['DateTime'], max_rank['Rank'], color='green')
-                    ax.text(max_rank['DateTime'], max_rank['Rank'], f"{max_rank['Rank']}", verticalalignment='bottom', horizontalalignment='left', color='green')
-                    plotted_max_points.add((current_period, max_rank['DateTime']))
+            # Plot max rank when the timeline reaches or passes the max point
+            if (current_period, max_rank['DateTime']) not in plotted_max_points and current_time >= max_rank['DateTime']:
+                ax.scatter(max_rank['DateTime'], max_rank['Rank'], color='green')
+                ax.text(max_rank['DateTime'], max_rank['Rank'], f"{max_rank['Rank']}",
+                        verticalalignment='bottom', horizontalalignment='left', color='green')
+                plotted_max_points.add((current_period, max_rank['DateTime']))
 
         progress_bar.update(1)
         return line, text
