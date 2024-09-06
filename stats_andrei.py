@@ -1,7 +1,6 @@
 import discord
 import re
 from datetime import datetime
-import matplotlib
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -11,21 +10,14 @@ import argparse
 from tqdm import tqdm
 
 # Load environment variables from .env file
-matplotlib.use('Agg')  # Non-interactive backend
 load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID'))
 
 intents = discord.Intents.default()
 intents.messages = True
-intents.message_content = True
+
 client = discord.Client(intents=intents)
-
-if not os.path.exists('videos'):
-    os.makedirs('videos')
-
-if not os.path.exists('images'):
-    os.makedirs('images')
 
 async def fetch_messages(channel, start_date, end_date):
     messages = []
@@ -81,12 +73,12 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
     # Highlight the first and last dates
     first_date = df['DateTime'].iloc[0]
     last_date = df['DateTime'].iloc[-1]
-    plt.scatter([first_date, last_date], 
-                [df['Rank'].iloc[0], df['Rank'].iloc[-1]], 
-                color='orange')
-    plt.text(first_date, df['Rank'].iloc[0], first_date.strftime('%Y-%m-%d'), verticalalignment='bottom', horizontalalignment='right', color='orange')
-    plt.text(last_date, df['Rank'].iloc[-1], last_date.strftime('%Y-%m-%d'), verticalalignment='bottom', horizontalalignment='right', color='orange')
-
+    
+    plt.annotate(first_date.strftime('%d %B %Y'), xy=(first_date, 0), xycoords=('data', 'axes fraction'),
+                    xytext=(-50, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
+    plt.annotate(last_date.strftime('%d %B %Y'), xy=(last_date, 0), xycoords=('data', 'axes fraction'),
+                    xytext=(50, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
+    
     if detailed:
         # Highlight local minimum and maximum for each month
         df['Month'] = df['DateTime'].dt.to_period('M').apply(lambda r: r.start_time)
@@ -123,7 +115,8 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
     
     return image_path
 
-def create_animation(df, inverted=False, detailed=False, duration=10):
+
+def create_animation(df, inverted=False, detailed=False, duration=10, zoomed_in=False, start_date=None, end_date=None):
     fig, ax = plt.subplots(figsize=(19.2, 10.8))
     line, = ax.plot([], [], linestyle='-', marker='')
     text = ax.text(0.5, 1.05, '', transform=ax.transAxes, ha='center', fontsize=15)
@@ -131,25 +124,46 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
     plotted_min_points = set()
     plotted_max_points = set()
 
+    # Filter the dataframe based on start_date and end_date if provided
+    if start_date:
+        df = df[df['DateTime'] >= pd.to_datetime(start_date)]
+    if end_date:
+        df = df[df['DateTime'] <= pd.to_datetime(end_date)]
+
     # Get the first and last date for annotations
     first_date = df['DateTime'].iloc[0]
     last_date = df['DateTime'].iloc[-1]
+    
+    # Calculate the total duration in days
+    total_days = (last_date - first_date).days
+
+    # Set the interval for local min/max annotations based on the total duration
+    if total_days > 365:
+        interval = 'M'  # Monthly for more than a year
+    elif total_days > 30:
+        interval = 'W'  # Weekly for more than a month
+    else:
+        interval = 'D'  # Daily otherwise
+
+    min_rank = df
 
     def init():
         ax.set_xlim(df['DateTime'].min(), df['DateTime'].max())
-        if args.zoomed_in: # TODO: fix for values close to factors of 25
+
+        if zoomed_in:
             min_rank = df['Rank'].min()
             max_rank = df['Rank'].max()
             min_rank = 25 * (min_rank // 25)
             max_rank = 25 * (max_rank // 25 + 1)
             ax.set_ylim(min_rank, max_rank)
-            pass
         else:
-            ax.set_ylim(0, 1000)
+            min_rank = df['Rank'].min()
+            max_rank = df['Rank'].max()
+            buffer = (max_rank - min_rank) * 0.1  
+            ax.set_ylim(min_rank - buffer, max_rank + buffer)
 
-        ax.grid(True)  # Add grid lines
+        ax.grid(True)  
 
-        # Add annotations for the first and last dates
         ax.annotate(first_date.strftime('%d %B %Y'), xy=(first_date, 0), xycoords=('data', 'axes fraction'),
                     xytext=(0, -30), textcoords='offset points', ha='center', fontsize=10, color='blue')
         ax.annotate(last_date.strftime('%d %B %Y'), xy=(last_date, 0), xycoords=('data', 'axes fraction'),
@@ -158,9 +172,7 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
         if inverted:
             ax.invert_yaxis()
         return line, text
-
     def update(frame):
-        # print(f"Processing frame {frame}/{len(df)}")  
         current_time = df['DateTime'].iloc[frame]
         current_rank = df['Rank'].iloc[frame]
         text.set_text(f"{current_time.strftime('%d %B %Y, %H:%M')}, Rank: {current_rank}")
@@ -168,23 +180,24 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
         ydata = df['Rank'].iloc[:frame + 1]
         line.set_data(xdata, ydata)
 
-        if detailed: # TODO: add option to select min/max interval
-            current_month = df['DateTime'].dt.to_period('M').iloc[frame]
-            month_group = df[df['DateTime'].dt.to_period('M') == current_month]
+        if detailed:
+            # Group data based on the calculated interval
+            current_period = df['DateTime'].dt.to_period(interval).iloc[frame]
+            period_group = df[df['DateTime'].dt.to_period(interval) == current_period]
 
-            if not month_group.empty:
-                max_rank = month_group.loc[month_group['Rank'].idxmin()]
-                min_rank = month_group.loc[month_group['Rank'].idxmax()]
+            if not period_group.empty:
+                max_rank = period_group.loc[period_group['Rank'].idxmin()]
+                min_rank = period_group.loc[period_group['Rank'].idxmax()]
 
-                if (current_month, min_rank['DateTime']) not in plotted_min_points and current_time >= min_rank['DateTime']:
+                if (current_period, min_rank['DateTime']) not in plotted_min_points and current_time >= min_rank['DateTime']:
                     ax.scatter(min_rank['DateTime'], min_rank['Rank'], color='blue')
                     ax.text(min_rank['DateTime'], min_rank['Rank'], f"{min_rank['Rank']}", verticalalignment='top', horizontalalignment='right', color='red')
-                    plotted_min_points.add((current_month, min_rank['DateTime']))
+                    plotted_min_points.add((current_period, min_rank['DateTime']))
 
-                if (current_month, max_rank['DateTime']) not in plotted_max_points and current_time >= max_rank['DateTime']:
+                if (current_period, max_rank['DateTime']) not in plotted_max_points and current_time >= max_rank['DateTime']:
                     ax.scatter(max_rank['DateTime'], max_rank['Rank'], color='green')
                     ax.text(max_rank['DateTime'], max_rank['Rank'], f"{max_rank['Rank']}", verticalalignment='bottom', horizontalalignment='left', color='green')
-                    plotted_max_points.add((current_month, max_rank['DateTime']))
+                    plotted_max_points.add((current_period, max_rank['DateTime']))
 
         progress_bar.update(1)
         return line, text
@@ -194,11 +207,12 @@ def create_animation(df, inverted=False, detailed=False, duration=10):
 
     # Save the animation as a video
     video_path = f'videos/{"GENERAL" if not args.start_date and not args.end_date else ( f"{args.start_date}___{args.end_date}" if args.start_date and args.end_date else f"FROM___{args.start_date}" if args.start_date else f"UNTIL___{args.end_date}")}___{"inverted_" if inverted else "normal_"}{"detailed_" if detailed else ""}{"zoomed_in_" if args.zoomed_in else ""}rank_evolution.mp4'
-    anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100, extra_args=['-v', 'error'])
+    anim.save(video_path, writer='ffmpeg', fps=fps, dpi=100)
     progress_bar.close()
     plt.close(fig)
     
     return video_path
+
 
 
 @client.event
@@ -206,7 +220,7 @@ async def on_ready():
     print(f'Logged in as {client.user}')
     channel = client.get_channel(CHANNEL_ID)
     
-    global args  # Make sure args are globally accessible within async functions
+    # Read all messages from the channel
     start_date = datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date else None
     end_date = datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date else None
     messages = await fetch_messages(channel, start_date, end_date)
