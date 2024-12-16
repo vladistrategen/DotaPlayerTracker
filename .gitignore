@@ -5,6 +5,8 @@ lambda_package.zip
 package/
 lambda_package/
 images/*
+!images/.gitkeep
 videos/*
+!videos/.gitkeep
 .vscode
 .vscode/*
