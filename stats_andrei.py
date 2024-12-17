@@ -13,15 +13,36 @@ from tqdm import tqdm
 load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID'))
+CHANNEL_ID_BACKUP = int(os.getenv('DISCORD_CHANNEL_ID_BACKUP'))
+CHANNEL_ID_PLOTS = int(os.getenv('DISCORD_CHANNEL_ID_PLOT'))
 
 intents = discord.Intents.default()
 intents.messages = True
 
 client = discord.Client(intents=intents)
 
-async def fetch_messages(channel, start_date, end_date):
+async def fetch_messages(channel, start_date, end_date, fresh=False):
     messages = []
     last_message_id = None
+    last_csv_date = None
+    
+    if not fresh:
+        latest_csv_path = get_latest_csv_file()
+        if latest_csv_path:
+            print(f"Reading from latest CSV file: {latest_csv_path}")
+            try:
+                last_csv_date, _ = get_last_from_csv(latest_csv_path)
+                print(f"Last entry in CSV is at {last_csv_date}")
+                csv_data = read_from_csv(latest_csv_path)
+                for _, row in csv_data.iterrows():
+                    if (not start_date or row['DateTime'] >= start_date) and (not end_date or row['DateTime'] <= end_date):
+                        messages.append({
+                            'DateTime': row['DateTime'],
+                            'Rank': row['Rank']
+                        })
+            except Exception as e:
+                print(f"Error reading CSV file: {e}")
+
     while True:
         new_messages = []
         async for message in channel.history(limit=100, before=discord.Object(id=last_message_id) if last_message_id else None):
@@ -35,11 +56,14 @@ async def fetch_messages(channel, start_date, end_date):
 
         for message in new_messages:
             message_date = parse_message(message.content)[0]
-            if message_date and (not start_date or message_date >= start_date) and (not end_date or message_date <= end_date):
-                found_new_messages_between_dates = True
-                messages.append(message)
+            if message_date:
+                if last_csv_date and message_date <= last_csv_date:
+                    print("Reached messages that are older than or equal to the last CSV entry. Stopping...")
+                    break
+                if (not start_date or message_date >= start_date) and (not end_date or message_date <= end_date):
+                    found_new_messages_between_dates = True
+                    messages.append(message)
 
-        # Check the dates of the first and last messages in the new batch
         first_message_date = parse_message(new_messages[0].content)[0]
         last_message_date = parse_message(new_messages[-1].content)[0]
 
@@ -48,6 +72,7 @@ async def fetch_messages(channel, start_date, end_date):
             print(f'Found {len(new_messages)} messages between {first_message_date} and {last_message_date}')
 
         last_message_id = new_messages[-1].id
+
         if start_date and last_message_date < start_date:
             print("Reached messages older than the start date. Stopping...")
             break  # Stop if we've reached messages older than the start date
@@ -64,6 +89,38 @@ def parse_message(message_content):
         rank = int(rank)
         return date_time, rank
     return None, None
+
+
+def save_to_csv(df, filename=f'backup/backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'):
+    df.to_csv(filename, index=False)
+
+
+def get_latest_csv_file():
+    files = os.listdir('backup')
+    csv_files = [file for file in files if file.endswith('.csv')]
+    if csv_files:
+        return os.path.join('backup', max(csv_files, key=lambda x: os.path.getctime(os.path.join('backup', x))))
+    return None
+
+
+def read_from_csv(filename):
+    return pd.read_csv(filename, parse_dates=['DateTime'])
+
+
+def get_last_from_csv(filename):
+    df = read_from_csv(filename)
+    return df.iloc[-1]['DateTime'], df.iloc[-1]['Rank']
+
+async def send_backup_to_channel(channel):
+    # get the latest csv file and upload it to the backup channel
+    latest_csv_path = get_latest_csv_file()
+    if latest_csv_path:
+        print(f"Uploading latest CSV file: {latest_csv_path}")
+        try:
+            with open(latest_csv_path, 'rb') as file:
+                await channel.send(content=f"Backup CSV file {datetime.now()}", file=discord.File(file))
+        except Exception as e:
+            print(f"Error uploading CSV file: {e}")
 
 # Function to plot rank evolution over time
 def plot_rank_evolution(df, inverted=False, detailed=False):
@@ -252,28 +309,48 @@ async def on_ready():
     # Read all messages from the channel
     start_date = datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date else None
     end_date = datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date else None
-    messages = await fetch_messages(channel, start_date, end_date)
+    messages = await fetch_messages(channel, start_date, end_date, args.fresh)
     
     data = []
-    for message in messages:
-        date_time, rank = parse_message(message.content)
-        if date_time and rank is not None:
-            data.append((date_time, rank))
+    try:
+        for message in messages:
+            try:
+                if hasattr(message, 'content') and message.content:
+                    date_time, rank = parse_message(message.content)
+                elif hasattr(message, 'DateTime') and hasattr(message, 'Rank'):
+                    date_time, rank = message.DateTime, message.Rank
+                else:
+                    continue  # Skip the message if it has no usable content
+                
+                if date_time and rank is not None:
+                    data.append((date_time, rank))
+            except Exception as msg_error:
+                print(f"Error parsing message: {msg_error}")
+    except Exception as e:
+        print(f"Error processing messages: {e}")
+        return
+    
+    if args.backup and not start_date and not end_date:
+        df = pd.DataFrame(data, columns=['DateTime', 'Rank'])
+        save_to_csv(df)
+
+        if args.send:
+            await send_backup_to_channel(client.get_channel(CHANNEL_ID_BACKUP))
 
     if data:
         df = pd.DataFrame(data, columns=['DateTime', 'Rank'])
         df.sort_values(by='DateTime', inplace=True)
-        
+        plot_channel = client.get_channel(CHANNEL_ID_PLOTS)
         if args.video:
             video_path = create_animation(df, args.inverted, args.detailed, args.duration)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if args.send:
-                message = await channel.send(content=f"Rank evolution animation generated on {today_str}", file=discord.File(video_path))
+                message = await plot_channel.send(content=f"Rank evolution animation generated on {today_str}", file=discord.File(video_path))
         else:
             image_path = plot_rank_evolution(df, args.inverted, args.detailed)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if args.send:
-                message = await channel.send(content=f"Rank evolution plot generated on {today_str}", file=discord.File(image_path))
+                message = await plot_channel.send(content=f"Rank evolution plot generated on {today_str}", file=discord.File(image_path))
         
         if args.pin and args.send:
             await message.pin()
@@ -297,6 +374,8 @@ if __name__ == "__main__":
     parser.add_argument('--start_date', '-sd', type=str, help='Start date for the data collection')
     parser.add_argument('--end_date', '-ed', type=str, help='End date for the data collection')
     parser.add_argument('--zoomed_in', '-z', action='store_true', help='Plot the graph with a dynamic, zoomed in y-axis')
+    parser.add_argument('--backup', '-b', action='store_true', help='Backup the data to a CSV file')
+    parser.add_argument('--fresh', '-f', action='store_true', help='Fetch fresh data from Discord')
     args = parser.parse_args()
     
     asyncio.run(main())

@@ -8,5 +8,7 @@ images/*
 !images/.gitkeep
 videos/*
 !videos/.gitkeep
+backup/*
+!backup/.gitkeep
 .vscode
 .vscode/*
