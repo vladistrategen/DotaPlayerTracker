@@ -35,7 +35,7 @@ async def fetch_messages(channel, start_date, end_date, fresh=False):
                 print(f"Last entry in CSV is at {last_csv_date}")
                 csv_data = read_from_csv(latest_csv_path)
                 for _, row in csv_data.iterrows():
-                    if (not start_date or row['DateTime'] >= start_date) and (not end_date or row['DateTime'] <= end_date):
+                    if (not start_date or row['DateTime'] >= start_date.utcnow()) and (not end_date or row['DateTime'] <= end_date.utcnow()):
                         messages.append({
                             'DateTime': row['DateTime'],
                             'Rank': row['Rank']
@@ -57,7 +57,7 @@ async def fetch_messages(channel, start_date, end_date, fresh=False):
         for message in new_messages:
             message_date = parse_message(message.content)[0]
             if message_date:
-                if last_csv_date and message_date <= last_csv_date:
+                if last_csv_date and message_date <= last_csv_date.utcnow():
                     print("Reached messages that are older than or equal to the last CSV entry. Stopping...")
                     break
                 if (not start_date or message_date >= start_date) and (not end_date or message_date <= end_date):
@@ -305,12 +305,21 @@ def create_animation(df, inverted=False, detailed=False, duration=10, zoomed_in=
 async def on_ready():
     print(f'Logged in as {client.user}')
     channel = client.get_channel(CHANNEL_ID)
-    
+
     # Read all messages from the channel
-    start_date = datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date else None
-    end_date = datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date else None
+    start_date = (
+        datetime.strptime(args.start_date, '%Y-%m-%d') if args.start_date
+        else None)
+    if start_date:
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    end_date = (
+        datetime.strptime(args.end_date, '%Y-%m-%d') if args.end_date
+        else None)
+    if end_date:
+        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
     messages = await fetch_messages(channel, start_date, end_date, args.fresh)
-    
+
     data = []
     try:
         for message in messages:
