@@ -99,37 +99,37 @@ def get_channel_message_and_name(leaderboard_rank: int, old_channel_name: str):
     elif leaderboard_rank <= 70:
         message += "Tatal tau este mandru de tine!"
     elif leaderboard_rank <= 100:
-        message += "He is locked in, he takes no prisoners, there is no one to tell the tale..."
+        message += "What did it cost? Everything"
     elif leaderboard_rank <= 125:
-        message += "Inca putin si vine salariul"
+        message += "You are the one who knocks"
     elif leaderboard_rank <= 150:
-        message += "Ai scapat de flori, you live to fight another day"
+        message += "HE IS LOCKED THE FUCK IN"
     elif leaderboard_rank <= 200:
-        message += "Jon Snow a venit din morti, tu ai venit din top 200"
+        message += "GOT season 1-4, Kobe and Shaq 2001, Cinema 2018-2019, Breaking Bad"
     elif leaderboard_rank <= 250:
-        message += "Inca putin si ma las de facultate"
+        message += "CE LE FACI COPILEEEEEEEEEEEEEEEEEEE"
     elif leaderboard_rank <= 300:
-        message += "Este doar un mental block... pot intra in top 200"
+        message += "Time is a flat circle and you are on top of it"
     elif leaderboard_rank <= 350:
-        message += "Inca 300 de rankuri si o s-o ai pe Aviana"
+        message += "Hai andreie da in pl mea drumu la brate ce cacat faci"
     elif leaderboard_rank < 400:
-        message += "Mda, nu mai esti un gunoi"
+        message += "Pentru asta n ai vrut sa mergi la sala? Pentru asta n ai vrut sa mergem la cabane?"
     elif leaderboard_rank < 450:
         message += "HAAAI ANDREI CA NE AI BAGAT PE TOTI IN SCAUNEEEEEEE"
     elif leaderboard_rank < 500:
-        message += "The shadow of a once mighty player..."
+        message += "Game of thrones Season 8, Mihai after 2020, Andrei dupa liceu"
     elif leaderboard_rank < 550:
-        message += "For the watch"
+        message += "At this point lasa-l pe gabi sa joace in locu tau "
     elif leaderboard_rank < 600:
-        message += "Ce faci, esti prost?"
+        message += "Sa-i fie tarana usoara💀💀💀💀"
     elif leaderboard_rank < 650:
-        message += "Nici gagica n-ai, nici rank n-ai, ce faci cu viata ta?"
+        message += "Joaca-te Master Yi pe lol, doar atata stii"
     elif leaderboard_rank < 700:
-        message += "Esti prost, nu te mai uita la monitor"
+        message += "Stick to watching arcane lil bro"
     elif leaderboard_rank < 750:
-        message += "Sa speram ca nu cade mai jos de atat..."
+        message += "Kraven the Hunter, Babygirl, Morbius,"
     elif leaderboard_rank < 800:
-        message += "Cum s-a ajuns aici?"
+        message += "Sper sa nu vezi vreodata promptul asta"
     elif leaderboard_rank < 900:
         message += "Esti un GUNOI!!!! Mihai juca mai bine, apuca te de league si joaca Garen ca atata stii sa faci"
     elif leaderboard_rank < 1000:
