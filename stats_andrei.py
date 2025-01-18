@@ -134,7 +134,7 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
 
     if total_days > 365:
         interval = 'M'  
-    elif total_days > 30:
+    elif total_days > 60:
         interval = 'W'  
     else:
         interval = 'D'
@@ -170,7 +170,7 @@ def plot_rank_evolution(df, inverted=False, detailed=False):
     plt.title('Rank Evolution Over Time')
     plt.grid(True)
     plt.xticks(rotation=45)
-    if args.zoomed_in: # TODO: fix for values close to factors of 25
+    if args.zoomed_in: # TODO: fix for values close to factors of 5
         min_rank = df['Rank'].min()
         max_rank = df['Rank'].max()
         min_rank = 25 * (min_rank // 25)
@@ -354,12 +354,12 @@ async def on_ready():
             video_path = create_animation(df, args.inverted, args.detailed, args.duration)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if args.send:
-                message = await plot_channel.send(content=f"Rank evolution animation generated on {today_str}", file=discord.File(video_path))
+                message = await plot_channel.send(content=f"{"@here" if args.notify else ""} Rank evolution animation generated on {today_str}", file=discord.File(video_path))
         else:
             image_path = plot_rank_evolution(df, args.inverted, args.detailed)
             today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if args.send:
-                message = await plot_channel.send(content=f"Rank evolution plot generated on {today_str}", file=discord.File(image_path))
+                message = await plot_channel.send(content=f"{"@here" if args.notify else ""} Rank evolution plot generated on {today_str}", file=discord.File(image_path))
         
         if args.pin and args.send:
             await message.pin()
@@ -385,6 +385,7 @@ if __name__ == "__main__":
     parser.add_argument('--zoomed_in', '-z', action='store_true', help='Plot the graph with a dynamic, zoomed in y-axis')
     parser.add_argument('--backup', '-b', action='store_true', help='Backup the data to a CSV file')
     parser.add_argument('--fresh', '-f', action='store_true', help='Fetch fresh data from Discord')
+    parser.add_argument('--notify', '-n', action='store_true', help='Notify the users when the plot is generated')
     args = parser.parse_args()
     
     asyncio.run(main())
